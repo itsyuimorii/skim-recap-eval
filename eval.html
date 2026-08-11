@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Skim Recap — backend comparison</title>
+    <style>
+      :root {
+        --bg: #f6f8fa;
+        --panel: #fff;
+        --line: #e3e8ee;
+        --text: #1d242d;
+        --muted: #7c8794;
+        --accent: #1e9a46;
+        --bad: #c0392b;
+        --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font: 14px/1.55 -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        background: var(--bg); color: var(--text); padding: 24px;
+      }
+      h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.3px; }
+      .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+      .bar {
+        display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+        margin: 16px 0; padding: 12px; background: var(--panel);
+        border: 1px solid var(--line); border-radius: 10px;
+      }
+      button, label.file {
+        font: inherit; font-weight: 500; padding: 7px 14px; border-radius: 7px;
+        border: 1px solid var(--line); background: #fff; cursor: pointer;
+      }
+      button:disabled { opacity: .4; cursor: default; }
+      button.primary { background: var(--text); color: #fff; border-color: var(--text); }
+      #status { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+      input[type=file] { display: none; }
+
+      #env {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+        padding: 12px; margin-bottom: 16px;
+      }
+      .envgrid { display: grid; grid-template-columns: 190px 1fr; gap: 4px 14px; }
+      .envgrid .k { color: var(--muted); font-size: 12px; }
+      .envgrid .v {
+        font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap;
+        word-break: break-word; max-height: 130px; overflow: auto;
+      }
+
+      label.rep { font-size: 12.5px; color: var(--muted); }
+      label.rep select { font: inherit; margin-left: 4px; }
+      .runlabel {
+        font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+        text-transform: uppercase; letter-spacing: .07em; margin-top: 10px;
+      }
+      .runlabel:first-child { margin-top: 0; }
+      .verdict {
+        margin-top: 8px; font-family: var(--mono); font-size: 11px;
+        padding: 3px 8px; border-radius: 5px; display: inline-block;
+      }
+      .verdict.same { background: #e7f6ec; color: #14682f; }
+      .verdict.differs { background: #fff5e6; color: #9a5b00; }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+      .chip {
+        font-family: var(--mono); font-size: 11px; padding: 2px 8px;
+        border-radius: 5px; border: 1px solid transparent;
+      }
+      .chip.ok { background: #e7f6ec; color: #14682f; border-color: #bfe4cb; }
+      .chip.no { background: #fdecea; color: var(--bad); border-color: #f5c6c0; }
+
+      #capbox {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+        padding: 12px 14px; margin-bottom: 16px;
+      }
+      #capbox summary {
+        font-weight: 600; cursor: pointer; display: flex; gap: 8px; align-items: center;
+      }
+      .hint { color: var(--muted); font-size: 12.5px; margin: 8px 0; }
+      button.small { font-size: 11.5px; padding: 3px 9px; font-weight: 500; }
+      .cap {
+        display: grid; grid-template-columns: 20px 1fr auto; gap: 10px;
+        align-items: start; padding: 10px 0; border-top: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .captitle { font-weight: 600; font-size: 13px; }
+      .capsub { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 1px 0 4px; }
+      .captext { color: var(--muted); font-size: 12.5px; }
+
+      .row {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+        margin-bottom: 14px; overflow: hidden;
+      }
+      .rowhead {
+        display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+        padding: 10px 14px; border-bottom: 1px solid var(--line); background: #fbfcfd;
+      }
+      .rowhead .title { font-weight: 600; }
+      .rowhead .mode, .rowhead .lang {
+        font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--accent);
+      }
+      .rowhead .lang { color: var(--muted); }
+      .rowhead .hyp { color: var(--muted); font-size: 12.5px; flex: 1 1 320px; }
+      .rowhead .terms {
+        font-family: var(--mono); font-size: 11px; color: var(--muted);
+        background: #f1f4f7; padding: 1px 6px; border-radius: 4px;
+      }
+
+      .cols { display: grid; grid-template-columns: 1fr 1fr; }
+      .col + .col { border-left: 1px solid var(--line); }
+      .collabel {
+        font-family: var(--mono); font-size: 11px; color: var(--muted);
+        padding: 8px 14px 0;
+      }
+      .cell { padding: 8px 14px 14px; min-height: 90px; }
+      .cell .out { white-space: pre-wrap; }
+      .cell .pending { color: var(--muted); }
+      .cell .meta {
+        margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted);
+      }
+      .cell .err {
+        margin-top: 6px; padding: 6px 9px; border-radius: 6px; font-size: 12.5px;
+        background: #fdecea; color: var(--bad); border: 1px solid #f5c6c0;
+      }
+      /* A language rejection is a capability limit, not a crash — worth its own
+         colour so the two never get read as the same result. */
+      .cell .err.kind-language { background: #fff5e6; color: #9a5b00; border-color: #f2d9b0; }
+
+      /* Chrome prints to PDF, so this is the report. Controls and the capture
+         list are working surfaces and don't belong in it; the environment does,
+         because numbers are unreadable without knowing what produced them. */
+      @media print {
+        @page { margin: 14mm; }
+        body { background: #fff; padding: 0; font-size: 10.5pt; }
+        .bar, #capbox { display: none; }
+        #env, .row { break-inside: avoid; border-color: #ccc; }
+        .row { margin-bottom: 10px; }
+        .envgrid .v { max-height: none; overflow: visible; }
+        .cols { grid-template-columns: 1fr 1fr; }
+        .cell { min-height: 0; }
+        h1 { font-size: 15pt; }
+        a { color: inherit; text-decoration: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Skim Recap — backend comparison</h1>
+    <p class="sub">
+      LiteRT-LM (Gemma 4 E4B, 2.97 GB) against Chrome's built-in Prompt API, on the
+      same prompts the extension ships.
+    </p>
+
+    <div class="bar">
+      <button id="run-captures" class="primary" disabled>Run selected captures</button>
+      <button id="run-all">Run corpus</button>
+      <button id="run-demo">Run demo subset</button>
+      <button id="stop" disabled>Stop</button>
+      <label class="rep">Recap in
+        <select id="target-lang">
+          <option value="">page language</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="zh">中文</option>
+          <option value="ko">한국어</option>
+          <option value="de">Deutsch</option>
+        </select>
+      </label>
+      <label class="rep">Repeat
+        <select id="repeats">
+          <option value="1">×1</option>
+          <option value="2">×2 (check reproducibility)</option>
+          <option value="3">×3</option>
+        </select>
+      </label>
+      <button id="print">Save as PDF</button>
+      <button id="export">Export JSON</button>
+      <label class="file">Load JSON<input id="import" type="file" accept="application/json" /></label>
+      <span id="status"></span>
+    </div>
+
+    <div id="env"></div>
+
+    <details id="capbox" open>
+      <summary>
+        Captured passages
+        <button id="refresh-captures" class="small">Refresh</button>
+        <button id="clear-captures" class="small">Clear</button>
+      </summary>
+      <p class="hint">
+        Every fast scroll on a real article is recorded here, exactly as the
+        extension extracted it. Tick some and run them — seeing where the two
+        backends disagree is what tells you which passages are worth keeping.
+        Then <em>Copy as fixture</em> to promote one into <code>src/fixtures.ts</code>.
+      </p>
+      <div id="captures"></div>
+    </details>
+
+    <div id="grid"></div>
+
+    <script src="dist/eval.js"></script>
+  </body>
+</html>
