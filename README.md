@@ -75,8 +75,8 @@ Neither model showed a knowledge gap across clinical pharmacology, economic
 history, ML systems and education research — including in the mode built to
 expose one, where the model may define a term the passage names but never
 explains. At matched sampling both are fully reproducible, 18/18 each. The
-built-in model is more verbose (1.64× in explain mode) and answers first in 28
-of 36 paired runs.
+built-in model produced 1.64× more characters in explain mode, and was first to
+token in 28 of 36 paired runs.
 
 What blocks adoption is not quality. `LanguageModel` accepts five languages, and
 the restriction applies to **declared inputs**, not only outputs — so declaring

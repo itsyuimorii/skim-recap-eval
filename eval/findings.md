@@ -241,7 +241,7 @@ corpus has to be built to find the edge rather than to confirm the
 expectation.
 
 **Stated plainly, because it is the honest reading so far:** on this passage
-the zero-download backend was faster and no worse. One passage from one
+the zero-download backend was faster, and nothing separated them on accuracy. One passage from one
 article settles nothing, but it is evidence against the expected conclusion
 rather than for it.
 
@@ -425,7 +425,7 @@ With sampling matched, six dimensions:
 | Reproducible output | yes | **yes** (once greedy is requested) |
 | Domain knowledge, 4 domains | no gap found | **no gap found** |
 | Fabrication | none observed | **none observed** |
-| Concision under instruction | **1.3–2× tighter** | verbose |
+| Mean chars, explain mode | 1011 | 1656 |
 | Time to first token | slower | **faster** |
 | Output languages | any Gemma writes | **five only** |
 | Input languages | any | **five only** |
@@ -435,12 +435,12 @@ The expectation going in was that a 2.97 GB model would show a knowledge edge
 in explain mode. It did not, in four unrelated domains. What separates the two
 is not what they know.
 
-**So the honest message is not "the built-in model isn't good enough".** It is
-that the built-in model is good enough for this product in English, Japanese,
+**So the blocker is not quality.** On this corpus no quality reason to rule the
+built-in model out turned up; it covers this product in English, Japanese,
 Spanish, German and French — and cannot be adopted at all because a reading
 tool on the open web cannot promise the page will be in one of those five.
 
-That is a better thing to bring to the Chrome team than a quality complaint,
+That is something specific that can change, which is the useful kind of thing to report,
 because it names something specific that can change.
 
 ---

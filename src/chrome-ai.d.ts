@@ -35,9 +35,9 @@ declare const Translator: {
 };
 
 /* The Prompt API. Chrome's docs list en, ja, es, de and fr as the accepted
-   `languages` values; anything else is expected to reject with a
-   NotSupportedError, which is a capability limit rather than a fault and is
-   typed as such nowhere — hence the loose `string`. */
+   `languages` values; anything else rejects with a NotSupportedError. That is a
+   runtime capability limit rather than a type-level one, so `string` here is
+   deliberate. */
 interface LanguageModelExpectation {
   type: 'text' | 'image' | 'audio';
   languages?: string[];

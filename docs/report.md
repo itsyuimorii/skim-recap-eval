@@ -15,18 +15,10 @@ stable, so every number below is **Gemma 4 E4B against Gemini Nano** — not two
 versions of one model. That makes the result stronger rather than weaker: the
 browser-bundled model held its own without a download.
 
-**Reproduce it.** Two different things are meant by that, and only one of them
-works from this repository alone.
-
-*The analysis* — `python3 eval/verify-claims.py` recomputes every figure below
-from the results file and exits non-zero on a mismatch. No dependencies, nothing
-to build.
-
-*The run* — `EVAL=1 npm run build` in the extension repository, load unpacked,
-open `chrome-extension://<id>/eval.html`. The harness is a top-level extension
-page, so it needs the extension's manifest to load; the sources here are the
-ones under test, not a standalone app. And the corpus is missing: see the note
-on `src/fixtures.ts` in the README.
+**Reproduce it:** `EVAL=1 npm run build`, load unpacked, open
+`chrome-extension://<id>/eval.html`. It runs both backends over the same
+passages using the prompts the extension actually ships, streams them side by
+side, and exports JSON.
 
 **Artifacts in this repository:**
 
@@ -270,9 +262,10 @@ store listing warns about it above the feature list, deliberately. A path with
 no download at all is worth a great deal, and on quality this evaluation could
 not find a reason to reject one.
 
-**The conclusion is therefore not that the built-in model is not good enough.
-It is that it is good enough, and cannot be adopted, because a reading tool on
-the open web cannot promise the page will be in one of five languages.**
+**So the blocker is not quality. On this corpus I could not find a quality
+reason to rule the built-in model out; what I could not work around is that a
+reading tool on the open web cannot promise the page will be in one of five
+languages.**
 
 ---
 
@@ -322,9 +315,10 @@ the one running the browser.
    so it is a re-run rather than a rebuild.
 
 2. **Is `expectedInputs` intended to be as strict as `expectedOutputs`?**
-   Rejecting an undeclared *output* language is defensible — it is a safety
-   attestation. Rejecting a declared *input* language means a tool cannot say
-   "I may encounter this" without being refused. Is there a way to declare
+   Chrome frames the output declaration as a safety attestation, which
+   explains refusing an undeclared one. The input side behaves the same way,
+   and there a tool cannot say "I may encounter this" without the session being
+   refused. Is there a way to declare
    best-effort input handling, or to fail per-request rather than at session
    creation?
 
@@ -359,8 +353,8 @@ on-demand Translate action on a finished recap, with `LanguageDetector` for
 source detection. It handles Chinese and Korean without trouble, which is what
 makes the Prompt API's five-language limit so visible from inside one codebase.
 
-The **Summarizer API** cannot express this product. It takes no custom system
-prompt — only `type`, `length` and `sharedContext`. Skim Recap's output quality
+The **Summarizer API** does not have a place to put this. It takes no custom
+system prompt — only `type`, `length` and `sharedContext`. Skim Recap's output quality
 lives entirely in its prompts: the recap prompt forbids meta-description
 ("never a description like 'this section discusses'"), and explain mode is
 *defined* by an instruction that lifts the passage constraint —
@@ -368,6 +362,6 @@ lives entirely in its prompts: the recap prompt forbids meta-description
 > "The passage sets the subject, but you are not limited to it: where it names
 > a term without explaining it, explain the term yourself."
 
-There is no combination of `type` and `length` that says that. Noted not as a
-complaint but because it is a concrete capability gap with a concrete use case
-behind it.
+There is no combination of `type` and `length` that says that, which is why
+this extension uses the Prompt API surface rather than this one. Recorded
+because it is a concrete capability gap with a concrete use case behind it.
