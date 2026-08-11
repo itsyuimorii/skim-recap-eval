@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Recompute every number in the writeups from the exported results file.
+"""Recompute a declared set of metrics from the exported results file.
 
-A claim nobody can re-derive is a claim, not a result. Run this before
-publishing or before answering a question about a figure:
+The expected values checked by this script are encoded below. The script does
+not parse the report or web article and does not validate every number or prose
+statement in either document. Run it before publishing or when inspecting the
+recorded metrics:
 
     python3 eval/verify-claims.py
 
-Each row prints the claimed value, the recomputed value, and where the claim
-lives. Rows marked NOT-IN-EXPORT are the ones that are true but sourced
-somewhere other than the results JSON — know them by name, because those are
-the ones you will be asked about.
+Each row prints the encoded expected value, the recomputed value, and a source
+label. Rows marked NOT-IN-EXPORT identify statements whose supporting value is
+not present in the results JSON; the script does not independently validate
+those statements.
 """
 import json
 import glob
@@ -132,15 +134,15 @@ check('rejected output languages', "['zh', 'zh-Hant', 'ko']", str(bad_langs))
 check('input languages match output', 'True', str(d_prompt['inputLanguages'] == d_prompt['outputLanguages']))
 
 # ---- claims that are true but live outside this file ---------------------
-note('maxNumTokens 4096', f"engine.settings, logged in findings.md §8 · "
+note('maxNumTokens 4096', f"engine.settings, logged in findings.md §4 · "
      f"this export says: {d_lite['engineSettings']!r}", 'blog, report, findings')
-note("LiteRT sampler is 'greedy'", 'inference from 18/18 identical output; no readable source names it',
-     'blog (stated as inference), findings §18')
+note('LiteRT sampler parameters', 'not reported; 18/18 byte-identical repeats do not identify the sampler settings',
+     'report, findings §4')
 note('Chrome 151.0.7922.108', f"userAgent in export reads {env['userAgent'].split('Chrome/')[1].split()[0]}"
      ' — the full build number came from chrome://version', 'blog, report')
-note('~17 captures, several dropped', 'selection history, not in the results file', 'blog §05, report')
-note('the 4 quotes are factually correct', 'correctness judged by hand against outside knowledge; '
-     'the verbatim check below only proves the model said it', 'blog §06, findings')
+note('~17 captures, several excluded', 'selection history, not in the results file', 'blog, report, findings §5')
+note('external factual review of 4 excerpts', 'reported by the author; the script only checks that the fragments occur',
+     'blog, report, findings §11')
 
 # ---- did the four quotes actually come out of these runs? ----------------
 # Substrings long enough that a paraphrase cannot pass. Each must appear
@@ -159,7 +161,7 @@ for backend, quote in QUOTES:
 empty = [f['id'] for f in data.get('fixtures', []) if not f.get('text')]
 if empty:
     note('corpus text in export', f'{len(empty)} of {len(data["fixtures"])} fixtures have empty text — '
-         'passages are in neither the export nor src/fixtures.ts (findings.md §21)', 'blog §14, findings')
+         'passages are in neither the export nor src/fixtures.ts (findings.md §13)', 'blog, report, findings')
 else:
     check('every fixture carries its passage', 'True', 'True')
 
@@ -176,7 +178,7 @@ for label, claimed, actual, where, ok in rows:
         fails += 1
         print(f'  MISMATCH       {label:<{W}} writeup says {claimed!r}, data says {actual!r}   [{where}]')
 
-# ---- every number that appears in the blog, unaccounted for --------------
+# ---- diagnostic scan for unmapped large numbers --------------------------
 print()
 source = BLOG if BLOG.exists() else DOCS['report']
 body = source.read_text()
@@ -185,6 +187,6 @@ body = re.sub(r'<[^>]+>', ' ', body)
 known = {c for _, c, a, _, _ in rows for c in re.findall(r'\d+(?:\.\d+)?', f'{c} {a}')}
 known |= {'0', '1', '2', '3', '4', '5', '6', '8', '9', '10', '11', '12', '13', '14', '18', '36', '72', '2026', '151'}
 loose = sorted({m for m in re.findall(r'(?<![\w.-])\d{3,}(?![\w%])', body)} - known)
-print(f'numbers >=3 digits in {source.name} not covered by a check above:', ', '.join(loose) or '(none)')
+print(f'numbers >=3 digits in {source.name} not mapped to an encoded check:', ', '.join(loose) or '(none)')
 print(f'\nmismatches: {fails}')
 sys.exit(1 if fails else 0)

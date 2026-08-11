@@ -1,367 +1,273 @@
-# Chrome Prompt API vs. a bundled Gemma — an evaluation from Skim Recap
+# Chrome Prompt API and a bundled Gemma — observed run record
 
-Skim Recap is a Chrome extension that detects a fast scroll, works out which
-passage went past unread, and shows a recap of it beside the cursor. It runs
-Gemma 4 E4B locally through LiteRT-LM on WebGPU, in an offscreen document. The
-model is a one-time 2.97 GB download.
+This document records measurements from a Skim Recap evaluation run. It does
+not rank the two backends, establish model equivalence, or recommend an
+adoption decision.
 
-André Cipriani Bandarra asked whether the Prompt API would work for this, "or
-not". This is the answer, with the harness that produced it.
+Skim Recap is a Chrome extension that detects a fast scroll, extracts the
+passage that moved past the viewport, and generates a recap locally. The
+shipping backend uses Gemma 4 E4B through LiteRT-LM on WebGPU in an offscreen
+document. The model file recorded for that backend is 2,969,059,328 bytes.
 
-**Which model this actually measured.** After the run, André confirmed that the
-migration from Gemini Nano to Gemma 4 is under way: Chrome *stable* still uses
-Gemini Nano, Canary already runs Gemma 4. This evaluation ran on Chrome 151
-stable, so every number below is **Gemma 4 E4B against Gemini Nano** — not two
-versions of one model. That makes the result stronger rather than weaker: the
-browser-bundled model held its own without a download.
+The second backend uses Chrome's `LanguageModel` Prompt API. On the test
+machine, `LanguageModel.availability()` returned `available`. That observation
+does not establish that another Chrome profile or device will have the model
+already downloaded; Chrome manages the Prompt API model and may report
+`downloadable` or `downloading` on other installations.
 
-**Reproduce it:** `EVAL=1 npm run build`, load unpacked, open
-`chrome-extension://<id>/eval.html`. It runs both backends over the same
-passages using the prompts the extension actually ships, streams them side by
-side, and exports JSON.
+## Scope and provenance
 
-**Artifacts in this repository:**
-
-- `eval/results/skim-recap-eval-2026-08-11T00-30-45-750Z.json` — every run, with
-  full output text, timings and any error. 72 runs, 9 passages, 0 failures.
-- `eval/results/comparison-2026-08-11.pdf` — the rendered side-by-side.
-- `eval/findings.md` — the running log, including the findings later withdrawn.
-- `src/eval.ts`, `eval.html` — the harness.
-
-Every number below is computed from that JSON, not transcribed.
-
----
-
-## Setup
-
-| | |
+| Item | Recorded value or source |
 | --- | --- |
-| Chrome | 151.0.7922.108, macOS, device performance class *Very High* |
-| GPU | Apple, metal-3 |
-| Bundled model | `gemma-4-E4B-it-web.litertlm`, 2,969,059,328 bytes, `maxNumTokens` 4096 (from an `engine.settings` read logged in `eval/findings.md` §8; the exported run reads *engine not loaded yet*), sampler params not reported |
-| Prompt API | `availability()` → `available` with no flag and no setup step; `contextWindow` 9216 |
-| Corpus | 9 passages, 4 domains: clinical pharmacology (CYP3A4 induction, dietary modulation, statins, repaglinide, saxagliptin), economic history (the Nixon shock), ML systems (a WebGPU inference paper), education research (control), AI (model knowledge cutoffs) |
-| Method | both backends × both modes × 2 runs, strictly sequential, one discarded warm-up per backend, timers start after model load but *before* session creation |
+| Run date | August 2026 |
+| Browser | Chrome 151.0.7922.108 on macOS |
+| GPU | Apple, `metal-3` |
+| Device performance class | `Very High` |
+| Bundled backend | `gemma-4-E4B-it-web.litertlm` through LiteRT-LM |
+| Prompt API backend | `LanguageModel` in Chrome 151 stable |
+| Passages | 9 |
+| Domains | clinical pharmacology, economic history, ML systems, education research, and AI model analysis |
+| Modes | recap and explain/Feynman |
+| Repeats | 2 per passage, mode, and backend |
+| Exported generations | 72 |
+| Failed generations in the final export | 0 |
 
-Passages were captured through the extension's own extraction pipeline rather
-than copied by hand, so they are the text the product would actually send.
-Each is ≤4000 characters, which is the budget `extract.ts` enforces.
+André Cipriani Bandarra stated after the run that Chrome stable was using
+Gemini Nano and Canary was using Gemma 4 during an ongoing migration. The
+runtime and exported JSON do not independently expose the Prompt API model
+identity. The statement is therefore recorded as an external attribution, not
+as a value measured by the harness.
 
-Two modes are compared. **Recap** is fenced to the passage — *"Given ONLY that
-passage"* — because a recap that adds things the article never said is a lie
-about what you scrolled past. **Explain** deliberately lifts that fence: where
-the passage names a term without defining it, the model may supply the
-definition. That second mode is why model capability seemed likely to matter.
+The exported artifacts are:
 
-### What is held constant, and what isn't
+- `eval/results/skim-recap-eval-2026-08-11T00-30-45-750Z.json`: output text,
+  timings, chunk counts, errors, environment fields, and fixture metadata.
+- `eval/results/comparison-2026-08-11.pdf`: rendered side-by-side outputs.
+- `eval/findings.md`: chronological observations, corrections, and open items.
+- `eval/verify-claims.py`: recomputation of a declared set of metrics encoded
+  in that script.
 
-**The prompts.** Both backends are given byte-identical system and user
-messages, from the module the extension itself imports. They were moved out of
-the inference file for exactly this reason: a copy inside the harness would
-agree today and silently disagree the first time a word was tuned, invalidating
-the comparison without failing anything.
+The exact input passages are not present in the repository. `src/fixtures.ts`
+exports an empty array, and all nine fixture `text` fields in the JSON export
+are empty. A fresh clone can inspect the harness, prompts, outputs, and selected
+aggregate calculations, but cannot rerun the exact corpus.
 
-**Sampling.** Greedy on both sides — but configured on only one of them, and
-the distinction matters. The Prompt API is explicitly set to `temperature: 0,
-topK: 1`. LiteRT-LM is passed a preface and no `sessionConfig` at all, so its
-sampler is a WASM default that appears in neither the library's TypeScript
-surface, nor this source, nor the export. What can be said is behavioural: it
-produced byte-identical output on every repeat, 18 times out of 18. *Greedy* is
-an inference from that, not a value anyone read. Getting this wrong produced one
-of the two withdrawn results below.
+## Prompt and input handling
 
-**Run order, corrected.** An earlier draft claimed backend was the innermost
-loop. Reading the runner: the nest is fixture → mode → backend → *repeat*, so
-within each of the 18 cells the order is LiteRT, LiteRT, Prompt API, Prompt API.
-LiteRT-LM takes the two earlier — and on a warming machine, cheaper — slots in
-every cell. The position effect therefore favours the bundled model, which lost
-anyway; see §3 for the three pairings that check it.
+Both backends received system and user messages from `src/prompts.ts`. The
+evaluation did not maintain a second copy of those prompts.
 
-**Extraction.** Both backends receive the same extracted text, so extraction is
-controlled by construction — it cannot favour either. But it does decide
-whether a passage is worth comparing at all, and that had to be handled by
-selection rather than by code.
+The recap prompt requests two to four short, self-contained points and limits
+the response to the supplied passage. The explain/Feynman prompt requests two
+to three short paragraphs and permits the backend to explain a term that the
+passage names without defining.
 
-Of roughly seventeen captures taken, several were extraction failures and were
-excluded from the corpus: bibliographies, author lists, and passages whose
-heading came from a sidebar ("Subscribe to newsletter", "Latest posts") rather
-than the article.
+The nine selected passages were captured through the extension's extraction
+path and were no longer than the extraction budget of 4,000 characters. The
+selection process began with approximately 17 captures. Captures containing
+bibliographies, author lists, or sidebar-derived headings were not included in
+the final nine. This selection history is recorded in `eval/findings.md`; it is
+not represented in the exported JSON.
 
-**That exclusion is itself worth reporting.** A reference list passes every
-filter this extension has. Citations are mostly plain text, so the link-density
-test that catches menus and "related articles" grids does not fire; each entry
-clears the minimum length; and the whole section sits inside the article
-container, so clipping the range to the article does not exclude it. Nothing
-about it looks like page furniture, and no recap of it can be useful.
+## Sampling configuration
 
-This is the part of the problem no choice of model addresses. Advertising
-slots, navigation and recommendation widgets are handled — they are link-dense
-and their class names say what they are. A bibliography on an academic blog is
-neither, and it defeated an extractor that has already been through three
-rounds of tuning.
+The Prompt API sessions in the final export requested:
 
----
+```text
+temperature: 0
+topK: 1
+```
 
-## 1. The expected result did not appear
+LiteRT-LM received a preface and no `sessionConfig`. Its temperature and top-K
+values were not available in the source, TypeScript surface, engine settings
+dump, or exported JSON. Its two outputs were byte-identical in every one of the
+18 passage-mode conditions. The report therefore records observed repeat
+equality, not matched sampler parameters.
 
-The corpus was built to find a knowledge edge. It contains terms invoked and
-never defined: `q2_k`, `q4_k_m`, `q8_0`, GPTQ, AWQ; bergamottin,
-furanocoumarins, PXR, CAR, AhR, DPP-4, SGLT2; Bretton Woods, gold
-convertibility.
+An earlier run used the Prompt API defaults reported by `LanguageModel.params()`:
+`defaultTemperature: 1` and `defaultTopK: 64`. In that earlier run, LiteRT-LM
+was identical in 11 of 11 repeated conditions and the Prompt API was identical
+in 0 of 11. Those counts are not part of the final exported run.
 
-**Across nine passages and four domains, neither backend showed a knowledge
-gap, and no fabricated definition was found on either side.** Stated precisely:
-all 72 outputs were read, and the four below were formally verified against
-outside knowledge rather than against the passage — which is the only check that
-means anything here. Four checked, not seventy-two; this is a reading, not an
-audit.
+## Execution order and timing definition
 
-> **LiteRT:** "Saxagliptin inhibits the DPP-4 enzyme to prolong incretin
-> hormone activity." — correct.
->
-> **LiteRT:** "taking repaglinide with gemfibrozil … because the gemfibrozil
-> prevents the body from breaking down the repaglinide" — correct, and it is
-> the textbook CYP2C8 interaction.
->
-> **Prompt API:** "rifampicin (an antibiotic) can reduce the effectiveness of
-> nateglinide" — correct; rifampicin is an inducer.
->
-> **Prompt API:** "WebLLM, Transformers.js, and WeInfer are existing
-> browser-based inference frameworks compared in this evaluation." — correct.
+The final runner used this order within every passage-mode condition:
 
-Whatever separates these two backends for this product, it is not what they
-know.
+```text
+LiteRT repeat 1
+LiteRT repeat 2
+Prompt API repeat 1
+Prompt API repeat 2
+```
 
-## 2. Two results this evaluation had to withdraw
+The order was not randomized or counterbalanced. One generation per backend
+was discarded before the measured loop. Each measured generation created a
+new session. The timer began before session creation and ended after streaming
+completed; time to first token therefore includes per-request session setup.
+Model download and the availability probe were outside the measured interval.
 
-Both are included because the corrections are more informative than the
-original claims.
+## Recorded output measurements
 
-**Reproducibility.** A first pass showed LiteRT identical across runs 11 times
-out of 11 and the Prompt API 0 out of 11 — an apparently decisive result. It
-was an artefact of two samplers, not two models. LiteRT-LM was running at its
-library default — deterministic in behaviour, though see the note on sampling
-above: nothing readable names it. The Prompt API was running at *its* documented
-default of `temperature: 1`. The
-Prompt API exposes `temperature` and `topK` to extensions and not to the open
-web, so this was ours to fix. Re-run with `temperature: 0, topK: 1`:
+### Repeat equality
 
-| backend | identical across runs |
-| --- | --- |
-| LiteRT-LM | **18 / 18** |
-| Chrome Prompt API | **18 / 18** |
+| Backend | Conditions with byte-identical repeat text |
+| --- | ---: |
+| LiteRT-LM | 18 / 18 |
+| Prompt API | 18 / 18 |
 
-A perfect tie, from what had looked like a decisive win.
+This records equality between two outputs per condition. It does not describe
+behavior under other sampler configurations, Chrome versions, devices, or
+additional repeats.
 
-**Instruction-following.** A first pass showed the Prompt API returning 6
-recap points against a "2 to 4" instruction, and LiteRT holding to 4. Over the
-full corpus LiteRT returned **5** on one passage. Both overshoot; neither
-reliably.
+### Output length
 
-## 3. What survives at matched sampling
+| Mode | LiteRT-LM mean characters | Prompt API mean characters | Prompt/LiteRT ratio |
+| --- | ---: | ---: | ---: |
+| Recap | 387 | 509 | 1.31x |
+| Explain/Feynman | 1,011 | 1,656 | 1.64x |
 
-**Length.** Recap asks for *"2 to 4 recap points"*; explain asks for *"2 to 3
-short paragraphs"*. Mean output over all 72 runs:
+Character counts include trailing whitespace. The Prompt API output ended with
+trailing whitespace in 22 of 36 runs; LiteRT-LM did so in 0 of 36 runs.
 
-| mode | LiteRT-LM | Prompt API | ratio |
-| --- | --- | --- | --- |
-| recap | 387 chars | 509 chars | 1.32× |
-| explain | 1011 chars | 1656 chars | **1.64×** |
+The recap prompt requested two to four points. In separate observed runs, the
+Prompt API returned six points on one passage and LiteRT-LM returned five
+points on one passage. These observations came from different run sets and are
+not a controlled comparison of violation frequency.
 
-With sampling held equal, so this is the model and not the sampler. For a card
-that appears beside the cursor mid-scroll, length is not a cosmetic property —
-and the gap widens in exactly the mode where the instruction says *short*.
+### Time to first token
 
-**Time to first token.** Not reported as a median. The machine drifted over the
-session — comparing each backend's first third against its last, LiteRT-LM went
-from 813 ms to 1266 ms and the Prompt API from 719 ms to 1017 ms, roughly
-1.4–1.6× on both sides — so a pooled median is not a property of either model.
-Reported pairwise instead, within a cell:
+The following pair counts are recomputed from the final JSON:
 
-| how the pair is formed | Prompt API first | *p* |
+| Pair definition | Pairs in which Prompt API TTFT was lower | Two-sided sign-test p-value |
+| --- | ---: | ---: |
+| LiteRT repeat 2 vs Prompt API repeat 1 | 16 / 18 | 0.001 |
+| Same repeat index | 28 / 36 | 0.001 |
+| Minimum LiteRT TTFT vs maximum Prompt API TTFT | 10 / 18 | 0.81 |
+
+The first-third and last-third TTFT medians were:
+
+| Backend | First third | Last third |
+| --- | ---: | ---: |
+| LiteRT-LM | 813 ms | 1,266 ms |
+| Prompt API | 719 ms | 1,017 ms |
+
+Within a condition, LiteRT-LM repeat 2 was a median 114 ms lower than repeat 1
+and was lower in 14 of 18 conditions. Prompt API repeat 2 was a median 149 ms
+higher than repeat 1. The fixed backend order, repeated observations within a
+condition, session creation, and machine drift are all present in these timing
+measurements.
+
+### Context fields
+
+The Prompt API session reported `contextWindow: 9216` in the export. A separate
+LiteRT-LM `engine.settings` reading recorded
+`mainExecutorSettings.maxNumTokens: 4096`. The latter is not present in the
+final JSON because the engine had not been loaded when that backend was
+described.
+
+## Language probes
+
+The harness attempted session creation separately for each language, once in
+`expectedInputs` and once in `expectedOutputs`.
+
+| Declaration | Session creation succeeded | Session creation raised `NotSupportedError` |
 | --- | --- | --- |
-| truly adjacent in time — LiteRT run 2 vs Prompt API run 1 | **16 / 18** | 0.001 |
-| same repeat index | **28 / 36** | 0.001 |
-| rigged — LiteRT's faster repeat vs the Prompt API's slower one | 10 / 18 | 0.81 |
+| `expectedInputs` | `en`, `ja`, `es`, `de`, `fr` | `zh`, `zh-Hant`, `ko` |
+| `expectedOutputs` | `en`, `ja`, `es`, `de`, `fr` | `zh`, `zh-Hant`, `ko` |
 
-The ordering survives every pairing that is not rigged against it; the margin is
-small enough that rigging it erases the effect. The Prompt API answers first,
-and this session cannot say by how much. It still takes longer in total, because
-it produces more.
+These probes ran in a top-level extension page. Prompt API availability in an
+offscreen document and in a content-script isolated world was not tested.
 
-Note also that the timer starts before `createSession`, so these figures include
-per-request session setup on both sides — time from asking for an answer to the
-first word of it, which is what a reader waits through.
+Before the supported input declaration was narrowed to the five accepted
+codes, a run that declared all eight Skim Recap languages failed Prompt API
+session creation with `NotSupportedError`. Those failed attempts are recorded
+in the chronological findings log and are not included in the 72-run final
+export.
 
-**A warm-up that does not cover everything.** LiteRT-LM's second run in a cell is
-a median **114 ms faster** than its first, in 14 of 18 cells. The discarded
-warm-up is one per backend, not one per conversation, so every cell pays a
-fresh-conversation cost the warm-up never covered. The Prompt API shows the
-opposite sign (+149 ms), which is what plain drift looks like.
+## Manual content review
 
-**One artefact, perfectly one-sided.** The Prompt API ended its output with
-trailing whitespace in **22 of 36** runs; LiteRT-LM in **0 of 36**. Cosmetic, and
-one `trimEnd()` fixes it, but anything streaming straight into a card sees it.
+The author read all 72 outputs with backend identity visible. There was no
+predefined rubric, second reviewer, blinding procedure, or inter-rater
+agreement measurement.
 
-**Failures: zero**, on either side, across all 72 runs.
+Four output claims were checked against external information. The verifier
+checks only that the quoted fragments occur in outputs from the attributed
+backend; it does not verify factual correctness.
 
-**Context window.** The Prompt API reports 9216 tokens against LiteRT-LM's
-`maxNumTokens: 4096`. More than twice the window, on the side with no
-download.
+Recorded excerpts:
 
-## 4. The blocker: languages, and specifically input languages
+- LiteRT-LM: "Saxagliptin inhibits the DPP-4 enzyme to prolong incretin
+  hormone activity."
+- LiteRT-LM: "the gemfibrozil prevents the body from breaking down the
+  repaglinide"
+- Prompt API: "rifampicin (an antibiotic) can reduce the effectiveness of
+  nateglinide"
+- Prompt API: "LlamaWeb uses less memory than Transformers.js and WebLLM on
+  NVIDIA RTX 5080"
 
-`LanguageModel` accepts five: `en`, `ja`, `es`, `de`, `fr`. Chrome says so
-itself, in a console warning when no output language is declared:
+An earlier draft attributed a sentence containing `WeInfer` to the Prompt API.
+No exported output contains `WeInfer`; that sentence is not used in this
+report.
 
-> Please specify a supported output language code: [de, en, es, fr, ja]
+The exact input passages are absent from the artifacts, so the repository does
+not permit an independent passage-to-output groundedness review.
 
-Skim Recap offers eight output languages. Three of them — Simplified Chinese,
-Traditional Chinese, Korean — are outside that set. Measured per language by
-creating one session each, inside an extension page:
+## Extraction observations
 
-| | accepted | rejected with `NotSupportedError` |
-| --- | --- | --- |
-| `expectedOutputs` | en ja es de fr | **zh zh-Hant ko** |
-| `expectedInputs` | en ja es de fr | **zh zh-Hant ko** |
+During corpus capture:
 
-**The input row is the one that matters, and it is the harder half.**
+- several extracted bodies were between 3,957 and 3,997 characters;
+- headings were sometimes taken from sidebar text such as `Latest posts` and
+  `Subscribe to newsletter`;
+- a bibliography passed the existing article-container, minimum-length, and
+  link-density filters;
+- advertising, navigation, and related-content blocks were not present in the
+  nine selected passages.
 
-An output language is something a tool chooses. Dropping Chinese recaps would
-be a feature reduction — unwelcome, survivable.
+These are observations from the selection session. The rejected passages are
+not included in the final export.
 
-An input language is something a tool *receives*. Skim Recap does not decide
-what page the reader opens. Declaring `zh` in `expectedInputs` says only "a
-Chinese page might turn up", which is true of any reading tool on the open web
-— and that declaration alone rejects the session, including one that only ever
-wanted English out. We observed this as a real failure before narrowing the
-declaration: every cell, every mode, `failed after 0 ms`.
+## Verification script coverage
 
-So the ceiling is not "no Chinese recaps". It is that the extension would have
-to **stop working on Chinese and Korean pages entirely** rather than degrade on
-them, and it cannot know in advance which pages those will be.
+`eval/verify-claims.py` recomputes a declared set of metrics whose expected
+values are encoded in the script: run counts, output-length means and ratios,
+repeat equality, three TTFT pairings and sign tests, drift summaries,
+repeat-to-repeat TTFT deltas, trailing whitespace counts, run order, selected
+environment fields, language probe results, and the presence of four quoted
+fragments.
 
-## 5. Where this leaves the decision
+The script does not parse this report or the web article and does not establish
+that every number in either document is covered. It prints `NOT-IN-EXPORT` for
+claims that depend on another source. A zero mismatch count means that the
+encoded expectations matched the newest JSON file; it is not a validation of
+all prose or all factual claims.
 
-| | LiteRT-LM (2.97 GB) | Chrome Prompt API |
-| --- | --- | --- |
-| First-run download | 2.97 GB | **none** |
-| Reproducible output | 18/18 | **18/18** |
-| Knowledge, 4 domains | no gap found | **no gap found** |
-| Fabrication | none observed | **none observed** |
-| Explain-mode length | **1011 chars** | 1656 chars |
-| First to token, paired runs | 8 / 36 | **28 / 36** |
-| Context window | 4096 | **9216** |
-| Failures in 72 runs | 0 | 0 |
-| Output languages | whatever Gemma writes | five |
-| Input languages | any | five |
-| Model version | pinned | browser-managed |
+## Limits of this record
 
-The 2.97 GB download is this extension's single largest install barrier — the
-store listing warns about it above the feature list, deliberately. A path with
-no download at all is worth a great deal, and on quality this evaluation could
-not find a reason to reject one.
+- The corpus contains nine selected passages and is not a representative
+  sample of reading behavior.
+- Repeated generations within one passage-mode condition are not independent
+  passages.
+- The author performed the content review unblinded.
+- Four claims, rather than all generated statements, received an external
+  factual check.
+- Measurements were made on one machine in one sequential session.
+- Backend order was fixed.
+- The Prompt API model is browser-managed and not pinned in the artifacts.
+- The exact passage text is missing from the repository and export.
+- Prompt API execution in the extension's production offscreen context was not
+  tested.
 
-**So the blocker is not quality. On this corpus I could not find a quality
-reason to rule the built-in model out; what I could not work around is that a
-reading tool on the open web cannot promise the page will be in one of five
-languages.**
+## Open questions
 
----
-
-## Limitations
-
-Everything above is one person, one laptop, one afternoon.
-
-**Nine passages is a probe, not a sample.** The corpus was chosen adversarially —
-passages that name a term and never define it — because that is the condition
-under which a knowledge gap would show. It is not representative of what anyone
-reads. "No gap found on nine hard passages" is much weaker than "no gap", and the
-honest reading of a null result at n = 9 is that the test lacked the power to
-separate them, not that they are equal.
-
-**Quality was judged by the author, unblinded.** No rubric, no second rater, no
-blinding, no agreement statistic — so every knowledge and fabrication claim
-carries a bias in favour of the model already shipped. The one reassurance is
-that the bias points the wrong way: the expectation was that the bundled model
-would win, and the report says it did not.
-
-**Length is measured; usefulness is not.** 1656 chars against 1011 is arithmetic.
-Whether the longer answer is worse is a product judgement — a card beside the
-cursor mid-scroll — never tested on a reader. On a different surface the ranking
-could invert.
-
-**One machine, and a warm one.** Apple silicon, *Very High* performance class,
-WebGPU over metal-3. The drift measured above shows the machine changing
-underneath the test. No absolute latency here should be quoted, and a thermally
-limited laptop or an integrated GPU may not reproduce the ordering.
-
-**Both sides are moving.** The built-in model is browser-managed and unpinned;
-the bundled one is pinned. These numbers describe Chrome 151 on one date.
-
-**What would fix it.** A held-out corpus neither model was chosen against; blind
-pairwise rating by someone other than the author; and a machine that is not also
-the one running the browser.
-
----
-
-## Questions for the Chrome team
-
-1. **Which model is actually behind the Prompt API today?** *Answered.* André
-   confirmed the migration is under way: stable is Gemini Nano, Canary is
-   already Gemma 4. So this compared Gemma 4 E4B against Gemini Nano. The
-   obvious next run is Gemini Nano against Gemma 4, both through the Prompt
-   API — stable against Canary. The harness is built and the corpus is fixed,
-   so it is a re-run rather than a rebuild.
-
-2. **Is `expectedInputs` intended to be as strict as `expectedOutputs`?**
-   Chrome frames the output declaration as a safety attestation, which
-   explains refusing an undeclared one. The input side behaves the same way,
-   and there a tool cannot say "I may encounter this" without the session being
-   refused. Is there a way to declare
-   best-effort input handling, or to fail per-request rather than at session
-   creation?
-
-3. **What is the roadmap for zh and ko?** The docs say more languages are in
-   development. For this product that single line decides adoption.
-
-4. **Is the Prompt API available in an offscreen document?** The docs cover
-   top-level windows, same-origin iframes and Web Workers, and say nothing
-   about extension contexts. This extension runs inference in an offscreen
-   document because it is the only MV3 context with WebGPU; if the Prompt API
-   is unavailable there, adoption needs an architecture change even where
-   language is not a problem. (This evaluation sidesteps the question by
-   running in a top-level extension page.)
-
-5. **Verbosity under an explicit length instruction.** Both models were given
-   *"2 to 3 short paragraphs"*; one averaged 1.3–2× the other. Is there
-   guidance for holding output length beyond prompt wording, given that
-   `maxOutputTokens` is not exposed?
-
-   In fairness: this side is not using the lever it has either. LiteRT-LM's
-   `SessionConfig` accepts `samplerParams` and `maxOutputTokens`; Skim Recap
-   passes neither. The restraint reported above is a library default, not a
-   setting anyone chose, and this side owes itself a configuration pass before
-   asking for a knob.
-
----
-
-## A note on the other two APIs
-
-The **Translator API** is already shipping in this extension — it powers the
-on-demand Translate action on a finished recap, with `LanguageDetector` for
-source detection. It handles Chinese and Korean without trouble, which is what
-makes the Prompt API's five-language limit so visible from inside one codebase.
-
-The **Summarizer API** does not have a place to put this. It takes no custom
-system prompt — only `type`, `length` and `sharedContext`. Skim Recap's output quality
-lives entirely in its prompts: the recap prompt forbids meta-description
-("never a description like 'this section discusses'"), and explain mode is
-*defined* by an instruction that lifts the passage constraint —
-
-> "The passage sets the subject, but you are not limited to it: where it names
-> a term without explaining it, explain the term yourself."
-
-There is no combination of `type` and `length` that says that, which is why
-this extension uses the Prompt API surface rather than this one. Recorded
-because it is a concrete capability gap with a concrete use case behind it.
+1. Does `LanguageModel` work in the extension's offscreen document?
+2. Does it work in a content-script isolated world?
+3. Is there a supported way to declare best-effort input languages or defer an
+   unsupported-language error until an individual request?
+4. What is the schedule for additional Prompt API input and output languages?
+5. Is an output-token limit planned for the Prompt API surface?
+6. What model and runtime identifiers can an extension record for a
+   browser-managed backend?
+7. What download state and model size are observed in a clean Chrome profile?
+8. How do Stable and Canary differ when browser version, runtime, and model may
+   all change together?

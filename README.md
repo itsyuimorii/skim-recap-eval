@@ -1,121 +1,103 @@
-# Gemma 4 E4B vs Chrome's built-in Prompt API
+# Skim Recap Prompt API evaluation artifacts
 
-The eval harness, raw results and working notes behind
-[this writeup](https://skim-recap.vercel.app/blog/gemma-4-e4b-vs-chrome-prompt-api).
+This repository contains an evaluation harness, one exported run, a rendered
+comparison, and an observation log for two Skim Recap inference backends:
+
+- Gemma 4 E4B through LiteRT-LM;
+- Chrome's `LanguageModel` Prompt API.
+
+The artifacts describe one run on one machine. They do not establish model
+equivalence, rank the backends, or state an adoption decision.
 
 [Skim Recap](https://chromewebstore.google.com/detail/skim-recap/febndabjnmbmdodeoenjmnplfcalmnmc)
-is a Chrome extension that notices when you scroll past something and shows a
-recap of it beside your cursor, generated on your own machine. It runs **Gemma 4
-E4B through LiteRT-LM** on WebGPU — a 2.97 GB one-time download. Chrome's
-**Prompt API** offers extensions an on-device model with no download at all.
-This compares the two on the prompts the extension actually ships.
+is a Chrome extension that extracts a passage after a fast scroll and generates
+a recap locally. Its shipping LiteRT-LM model file is 2,969,059,328 bytes. On
+the evaluation profile, `LanguageModel.availability()` returned `available`.
+That observation does not establish the download state on another Chrome
+profile or device.
 
-The extension itself is a private repository. This one carries the parts of it
-that a comparison has to expose to be checkable.
+## Artifact map
 
----
+| Path | Contents |
+| --- | --- |
+| `eval/results/*.json` | 72 generated outputs with timings, chunk counts, errors, environment fields, and fixture metadata |
+| `eval/results/*.pdf` | Rendered side-by-side outputs |
+| `eval/findings.md` | Factual observation, correction, and open-item log |
+| `eval/verify-claims.py` | Recomputes a declared set of metrics encoded in the script |
+| `docs/report.md` | Current factual run record |
+| `src/eval.ts`, `eval.html` | Evaluation runner and interface |
+| `src/backend*.ts` | Backend adapters |
+| `src/prompts.ts` | Prompts used by both backends |
+| `src/fixtures.ts` | Fixture type and currently empty fixture array |
 
-## Verify the numbers without running anything
+## Recompute the encoded metrics
 
-```
+```sh
 python3 eval/verify-claims.py
 ```
 
-No dependencies. It reads the results file and recomputes every figure that
-appears in the writeup — run counts, mean output length per mode per backend,
-reproducibility, all three latency pairings with their sign tests, the drift
-figures, the per-conversation warm-up delta, trailing whitespace, the
-environment values, and whether each quoted sentence appears verbatim in an
-output from the backend it is attributed to. It exits non-zero on any mismatch.
+The script has no third-party dependencies. It recomputes the metrics whose
+expected values are explicitly encoded in the script, including run counts,
+mean output lengths, repeat equality, three TTFT pair definitions, sign tests,
+drift summaries, repeat-to-repeat TTFT deltas, trailing whitespace, run order,
+selected environment fields, language probes, and the presence of four quoted
+fragments.
 
-It also prints a **NOT-IN-EXPORT** list: claims that are true but sourced
-somewhere other than the results file. Those are named deliberately, because
-they are the ones worth questioning.
+It does not parse the report or web article and does not verify every number or
+prose statement in either document. A zero mismatch count means that the
+encoded expectations match the newest JSON export.
 
-On its first run it caught two errors in the draft: a quotation attributed to
-the Prompt API that no output contained, and a length ratio printed as 1.32 that
-is 1.31 when computed from unrounded means. Both are recorded in
-[`eval/findings.md`](eval/findings.md) §20 and §22.
+The script prints `NOT-IN-EXPORT` for recorded values that depend on another
+source, including a LiteRT-LM engine-settings reading, the full Chrome build
+number, capture-selection history, and external factual review of four output
+claims.
 
-## What is here
+The script previously exposed two draft errors: an output quotation that did
+not occur in the export and a recap length ratio written as 1.32 rather than
+1.31. Both corrections are recorded in `eval/findings.md`.
 
-| | |
+## Reproduction boundary
+
+The exact nine input passages are absent from this repository.
+`src/fixtures.ts` exports an empty array, and every fixture `text` field in the
+current JSON export is empty. The artifacts preserve source domains, capture
+timestamps, extension versions, prompts, output text, timings, and errors, but
+not the exact passage text supplied to the backends.
+
+A fresh clone can inspect and run the harness with newly supplied fixtures and
+can recompute the encoded metrics from the existing export. It cannot rerun the
+exact nine-passage corpus or independently compare those missing passages with
+the saved outputs.
+
+## Recorded run shape
+
+| Field | Value |
 | --- | --- |
-| `eval/results/*.json` | Every run: full output text, timings, chunk counts, errors. 72 runs, 9 passages, 0 failures. |
-| `eval/findings.md` | The working log, in the order things were discovered — including the findings later withdrawn, and the methodology error found after publishing. |
-| `eval/verify-claims.py` | Recomputes the writeup from the results file. |
-| `docs/report.md` | The written comparison. |
-| `src/eval.ts`, `eval.html` | The harness. |
-| `src/backend*.ts` | The two-backend abstraction. LiteRT-LM and the Prompt API differ by four calls. |
-| `src/prompts.ts` | **The prompts under test**, verbatim from what the extension ships. |
-| `src/fixtures.ts` | The corpus type — and see the honest note below. |
+| Passages | 9 |
+| Modes | recap and explain/Feynman |
+| Backends | LiteRT-LM and Prompt API |
+| Repeats | 2 per passage-mode-backend condition |
+| Final exported generations | 72 |
+| Failed generations in the final export | 0 |
+| Prompt API sampling request | `temperature: 0`, `topK: 1` |
+| LiteRT-LM sampler parameters | not reported |
 
-## What you cannot re-run, and why
+The chronological log contains earlier runs and corrections. Sections in that
+file are marked `CURRENT`, `SUPERSEDED`, `CORRECTION`, or `OPEN`.
 
-**The nine passages are not here.** They were captured from live pages through
-the extension's own extraction path into browser storage, and never promoted
-into `src/fixtures.ts`, which still exports an empty array. The results file was
-designed to carry them — `EvalRun.fixtures` exists precisely so that passages
-travel with results — but in this export that field is empty for all nine.
+## Review limitations
 
-So a clone reproduces the harness, the prompts and the whole analysis; it does
-not reproduce the inputs. What survives is provenance — every fixture carries
-its `source.url`, capture timestamp and extension version, so all nine are
-traceable to arXiv, PMC, history.state.gov and the rest — plus every generated
-output, verbatim.
-
-Fixing it means re-capturing the corpus and committing it as literal constants,
-which is how it was always meant to work: a comparison that depends on nine
-pages still being up and still laid out the same way is not reproducible either.
-Tracked in `findings.md` §21.
-
-## What the comparison found
-
-Neither model showed a knowledge gap across clinical pharmacology, economic
-history, ML systems and education research — including in the mode built to
-expose one, where the model may define a term the passage names but never
-explains. At matched sampling both are fully reproducible, 18/18 each. The
-built-in model produced 1.64× more characters in explain mode, and was first to
-token in 28 of 36 paired runs.
-
-What blocks adoption is not quality. `LanguageModel` accepts five languages, and
-the restriction applies to **declared inputs**, not only outputs — so declaring
-that a Chinese page *might* turn up rejects session creation outright, including
-a session that only ever wanted English out. A reading tool does not get to
-choose what page it is handed.
-
-## Two things the writeup gets wrong, and now says so
-
-Both were found by auditing the post against the code rather than against
-memory, and both are in `findings.md` rather than quietly patched:
-
-- **The run order is not what was claimed.** The nest is fixture → mode →
-  backend → *repeat*, so within each of the 18 cells LiteRT-LM takes the two
-  earlier — and on a warming machine, cheaper — slots. That biases toward the
-  bundled model, which lost anyway, so the latency result is reported under
-  three pairings instead of one (§16).
-- **"Greedy on both sides" was configured on one side.** The Prompt API is set
-  to `temperature: 0, topK: 1`. LiteRT-LM is passed a preface and no
-  `sessionConfig` at all, so its sampler is a WASM default that appears in
-  neither the library's types, this source, nor the export. It behaved
-  deterministically 18/18; *greedy* is an inference from that (§18).
-
-## Which model this actually measured
-
-Chrome stable's Prompt API is backed by **Gemini Nano**; Canary is already on
-**Gemma 4**. So this run is Gemma 4 E4B against Gemini Nano — not two versions
-of one model. Next is the same fixed corpus on Canary, to separate the model
-from the API surface.
-
-## Limitations
-
-n = 9, and the corpus was chosen adversarially. Quality was judged by the author,
-unblinded, with no rubric and no second rater. One machine, and a warm one — the
-drift measured across the session is in the results. The built-in model is
-browser-managed and unpinned, so these numbers describe Chrome 151 on one date.
-The report carries the full version.
+- The corpus contains nine selected passages.
+- Output review was performed by the author with backend identity visible.
+- There was no predefined rubric, second reviewer, or agreement statistic.
+- Four output claims received an external factual check.
+- Timing came from one sequential session on one machine with a fixed backend
+  order.
+- The Prompt API model identity is externally attributed rather than exposed by
+  the runtime or export.
+- Prompt API execution in an offscreen document was not tested.
 
 ## Licence
 
-MIT for the harness and the analysis. The model is Google's, under its own
-terms.
+MIT for the harness and analysis code. Models and browser components remain
+under their respective terms.
