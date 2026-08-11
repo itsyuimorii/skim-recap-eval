@@ -44,6 +44,9 @@ Calling session creation separately for each language produced:
 | `expectedOutputs` | `en`, `ja`, `es`, `de`, `fr` | `zh`, `zh-Hant`, `ko` |
 | `expectedInputs` | `en`, `ja`, `es`, `de`, `fr` | `zh`, `zh-Hant`, `ko` |
 
+As individual examples from these probes, `ja` session creation succeeded for
+both declarations, while `ko` raised `NotSupportedError` for both declarations.
+
 The probes ran inside a top-level extension page. The first comparison attempt
 declared all eight Skim Recap languages in `expectedInputs`; Prompt API session
 creation then raised `NotSupportedError` before generation. The final exported

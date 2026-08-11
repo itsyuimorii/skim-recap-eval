@@ -175,6 +175,9 @@ The harness attempted session creation separately for each language, once in
 | `expectedInputs` | `en`, `ja`, `es`, `de`, `fr` | `zh`, `zh-Hant`, `ko` |
 | `expectedOutputs` | `en`, `ja`, `es`, `de`, `fr` | `zh`, `zh-Hant`, `ko` |
 
+As individual examples from these probes, `ja` session creation succeeded for
+both declarations, while `ko` raised `NotSupportedError` for both declarations.
+
 These probes ran in a top-level extension page. Prompt API availability in an
 offscreen document and in a content-script isolated world was not tested.
 

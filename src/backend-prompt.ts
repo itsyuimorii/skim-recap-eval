@@ -16,18 +16,10 @@ import {
   type ProgressFn,
 } from './backend';
 
-/* The five Chrome accepts. Declaring anything else rejects the whole session
-   with NotSupportedError — and the restriction applies to `expectedInputs`,
-   not just `expectedOutputs`.
-
-   That distinction matters more than it first looks. Skim Recap does not
-   choose what language a page is in; the reader opens whatever they were
-   going to read. Declaring `zh` here is only saying "a Chinese page might
-   turn up", which is true of any reading tool, and it is enough to make every
-   session fail — including one that only ever wanted an English recap out.
-   So the practical ceiling is not "no Chinese output", it is "no Chinese
-   input either", i.e. the extension would have to stop working on Chinese and
-   Korean pages entirely rather than degrade on them. */
+/* The five language codes accepted by the recorded session-creation probes.
+   The restriction applied to both `expectedInputs` and `expectedOutputs`.
+   As individual examples, `ja` succeeded for both declarations and `ko`
+   raised NotSupportedError for both declarations. */
 const EXPECTED_INPUT_LANGS = ['en', 'ja', 'es', 'de', 'fr'];
 
 /** Detects whether `promptStreaming` is handing back deltas or the whole
