@@ -189,9 +189,10 @@ export.
 
 ## Manual content review
 
-The author read all 72 outputs with backend identity visible. There was no
-predefined rubric, second reviewer, blinding procedure, or inter-rater
-agreement measurement.
+The author reviewed the outputs with backend identity visible. The review was
+not exhaustive: not every generation was read closely. There was no predefined
+rubric, second reviewer, blinding procedure, or inter-rater agreement
+measurement.
 
 Four output claims were checked against external information. The verifier
 checks only that the quoted fragments occur in outputs from the attributed

@@ -237,9 +237,9 @@ LiteRT-LM output ended with trailing whitespace in 0 of 36 final runs.
 
 **Status: CURRENT WITH REVIEW LIMITATIONS**
 
-The author read all 72 outputs with backend identity visible. There was no
-predefined scoring rubric, second reviewer, blinding procedure, or agreement
-statistic.
+The author reviewed the outputs with backend identity visible. The review was
+not exhaustive: not every generation was read closely. There was no predefined
+scoring rubric, second reviewer, blinding procedure, or agreement statistic.
 
 Four output claims were checked against external information. The repository's
 verification script checks that the quoted fragments occur in the attributed
