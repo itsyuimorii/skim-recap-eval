@@ -70,7 +70,12 @@ export interface Fixture {
    pharmacology entries came to share one sentence naming PXR and bergamottin —
    words that appear in none of them — and how the saxagliptin entry came to
    claim DPP-4 was undefined when its first sentence defines it. Two entries
-   were reclassified from undefined-term to bounded on the same reading. */
+   were reclassified from undefined-term to bounded on the same reading.
+
+   Note the source count: nine passages, five sources. Three pharmacology
+   entries are sections of one review, two ML entries are sections of one paper,
+   and two AI entries are overlapping slices of one post. Treating them as nine
+   independent observations would overstate the corpus. */
 export const FIXTURES: Fixture[] = [
   {
     id: "cap_1786408188100",

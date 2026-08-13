@@ -172,8 +172,9 @@ defines it in its first sentence. Two fixtures were reclassified from
 corpus commit, so its `fixtures` block still carries empty `text` fields; the
 passages are in the source file, not in that results file. A re-run produces an
 export that carries them. Two further caveats on the corpus itself: two fixtures
-are overlapping slices of one article and two more are sections of one paper, so
-nine passages come from six independent sources.
+are overlapping slices of one article, two more are sections of one paper, and
+three are sections of a single review — so nine passages come from **five**
+independent sources, not nine.
 
 ## Recorded run shape
 
