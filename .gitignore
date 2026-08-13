@@ -1,3 +1,5 @@
 node_modules/
 dist/
+# Copied out of node_modules by build.js — 101 MB of LiteRT-LM runtime.
+wasm/
 .DS_Store

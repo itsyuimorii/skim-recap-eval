@@ -1,0 +1,21 @@
+{
+  "name": "skim-recap-eval",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Harness, results and notes for the Skim Recap backend comparison.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.js",
+    "typecheck": "tsc --noEmit",
+    "verify": "python3 eval/verify-claims.py"
+  },
+  "dependencies": {
+    "@litert-lm/core": "^0.15.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.2.5",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2"
+  }
+}

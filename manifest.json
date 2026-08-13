@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Skim Recap — backend comparison harness",
+  "version": "0.4.0",
+  "description": "Runs the Skim Recap prompts against LiteRT-LM and Chrome's Prompt API side by side. Not the extension itself.",
+  "permissions": ["storage", "unlimitedStorage"],
+  "host_permissions": [
+    "https://huggingface.co/*",
+    "https://*.huggingface.co/*",
+    "https://*.hf.co/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}
