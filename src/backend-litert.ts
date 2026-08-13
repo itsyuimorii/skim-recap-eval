@@ -3,7 +3,13 @@
 // Moved here verbatim from offscreen.ts when a second backend was added for
 // comparison; the logic is unchanged. This is the shipped path.
 
-import { Engine, loadLiteRtLm, type Conversation } from '@litert-lm/core';
+import {
+  Engine,
+  loadLiteRtLm,
+  SamplerType,
+  type Conversation,
+  type SessionConfig,
+} from '@litert-lm/core';
 import {
   BackendError,
   classifyError,
@@ -178,10 +184,21 @@ class LiteRtBackend implements LlmBackend {
     await loadEngine(onProgress);
   }
 
+  /* Requested explicitly rather than left to the library, so the sampler is a
+     stated condition of any comparison instead of a default nobody read. The
+     first version of the Prompt API comparison set temperature and topK on that
+     side only, which made a reproducibility difference look like a property of
+     the models when it was a property of two different samplers. Both sides now
+     ask for greedy by name. */
+  private static readonly SESSION_CONFIG: SessionConfig = {
+    samplerParams: { type: SamplerType.GREEDY },
+  };
+
   async createSession(system: string): Promise<LlmSession> {
     const engine = await loadEngine(() => {});
     try {
       const conversation = await engine.createConversation({
+        sessionConfig: LiteRtBackend.SESSION_CONFIG,
         preface: { messages: [{ role: 'system', content: system }] },
       });
       return new LiteRtSession(conversation);
@@ -196,12 +213,13 @@ class LiteRtBackend implements LlmBackend {
      one that fills in after the first run.
 
      Note for anyone reading an eval export: `settings` is what the engine
-     actually resolved to, not what we asked for. We pass no sessionConfig at
-     all, so sampling is whatever the library defaults to — worth knowing when
-     comparing output length or latency against a backend whose temperature and
-     topK we do set. */
+     actually resolved to, not what we asked for — worth comparing against
+     SESSION_CONFIG above rather than assuming the request was honoured. */
   async describe(): Promise<Record<string, unknown>> {
-    const out: Record<string, unknown> = { model: MODEL_URL.split('/').pop() };
+    const out: Record<string, unknown> = {
+      model: MODEL_URL.split('/').pop(),
+      requestedSessionConfig: LiteRtBackend.SESSION_CONFIG,
+    };
     if (enginePromise) {
       try {
         const engine = await enginePromise;

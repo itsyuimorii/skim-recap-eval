@@ -40,6 +40,12 @@ interface RunRecord {
   repeat: number;
   ok: boolean;
   /** null when it failed before producing anything. */
+  /** 1-based position in the whole session, so an export can be checked for
+   *  order effects instead of the schedule being taken on trust. */
+  slot?: number;
+  /** Whether this backend led its group on this repeat. Counterbalanced, so
+   *  across a full run each backend leads half the time. */
+  ranFirstInGroup?: boolean;
   ttftMs: number | null;
   totalMs: number;
   chunkCount: number;
@@ -150,26 +156,36 @@ function renderEnv(env: Record<string, unknown>) {
 
 // ---- running ----
 
-/** Every cell in the matrix. Backend is innermost *here*, but `runAll` wraps
- *  each cell in a repeat loop, so the order actually executed is
+/** One comparison: a passage, a mode, and both backends to be run against it.
+ *  Grouping them is what lets the two runs being compared sit next to each
+ *  other in time. */
+interface Group {
+  fixture: Fixture;
+  mode: SummaryMode;
+}
+
+function* plan(fixtures: Fixture[]): Generator<Group> {
+  for (const f of fixtures) for (const mode of f.modes) yield { fixture: f, mode };
+}
+
+/** The order the backends run in, for one repeat of one group.
  *
- *      fixture → mode → backend → repeat
+ *  An earlier version ran every repeat of one backend before touching the
+ *  other, which put LiteRT-LM in the two earlier slots of all 18 groups. On a
+ *  machine that heats up over a session those are the cheaper slots, so the
+ *  schedule quietly favoured one side of the comparison — a position effect,
+ *  not a property of either model.
  *
- *  and within every cell both LiteRT runs happen before both Prompt API runs.
- *  That is a systematic position effect, not the interleaving this comment
- *  used to claim: on a machine that heats up, LiteRT always gets the cheaper
- *  slots. Anything comparing latency across backends has to say so — see
- *  eval/findings.md §16, which reports the same comparison under three
- *  different pairings for exactly this reason.
+ *  Two changes fix it. The backends now alternate within a group, so the two
+ *  outputs being compared are adjacent in time and drift mostly cancels
+ *  between them. And which one goes first flips with the group and the repeat,
+ *  so across a full run each backend leads exactly half the time.
  *
- *  Moving the repeat loop out to here would fix it, at the cost of making a
- *  partial run less useful to watch. Left as is, and documented instead. */
-function* plan(fixtures: Fixture[]) {
-  for (const f of fixtures) {
-    for (const mode of f.modes) {
-      for (const b of BACKENDS) yield { fixture: f, mode, backend: b };
-    }
-  }
+ *  Counterbalanced rather than randomised on purpose: the schedule stays a
+ *  function of the corpus, so two runs of the same corpus are comparable and a
+ *  reader can reconstruct the order from the export. */
+function backendOrder(groupIndex: number, repeat: number): LlmBackend[] {
+  return (groupIndex + repeat) % 2 === 0 ? BACKENDS : [...BACKENDS].reverse();
 }
 
 async function runOne(
@@ -256,41 +272,57 @@ async function run(fixtures: Fixture[]) {
   }
 
   const repeats = Number($<HTMLSelectElement>('#repeats').value) || 1;
+  const total = cells.length * repeats * BACKENDS.length;
   let done = 0;
-  for (const { fixture, mode, backend } of cells) {
+
+  for (const [gi, { fixture, mode }] of cells.entries()) {
     if (abort.signal.aborted) break;
-    const cell = $(`#cell-${fixture.id}-${mode}-${backend.id}`);
-    cell.textContent = '';
-    const texts: string[] = [];
+    const texts = new Map<string, string[]>();
+    for (const b of BACKENDS) {
+      $(`#cell-${fixture.id}-${mode}-${b.id}`).textContent = '';
+      texts.set(b.id, []);
+    }
+
     for (let r = 1; r <= repeats; r++) {
       if (abort.signal.aborted) break;
-      setStatus(
-        `${++done}/${cells.length * repeats} · ${fixture.title} · ${mode} · ${backend.label}` +
-          (repeats > 1 ? ` · run ${r}` : '')
-      );
-      if (repeats > 1) cell.appendChild(el('div', 'runlabel', `run ${r}`));
-      const body = el('div', 'out');
-      cell.appendChild(body);
-      const rec = await runOne(
-        fixture,
-        mode,
-        backend,
-        (c) => {
-          body.textContent += c;
-        },
-        r
-      );
-      current.runs.push(rec);
-      texts.push(rec.text);
-      paintCell(cell, rec);
+      for (const backend of backendOrder(gi, r)) {
+        if (abort.signal.aborted) break;
+        const cell = $(`#cell-${fixture.id}-${mode}-${backend.id}`);
+        setStatus(
+          `${++done}/${total} · ${fixture.title} · ${mode} · ${backend.label}` +
+            (repeats > 1 ? ` · run ${r}` : '')
+        );
+        if (repeats > 1) cell.appendChild(el('div', 'runlabel', `run ${r}`));
+        const body = el('div', 'out');
+        cell.appendChild(body);
+        const rec = await runOne(
+          fixture,
+          mode,
+          backend,
+          (c) => {
+            body.textContent += c;
+          },
+          r
+        );
+        /* So the export can be checked for the position effect this schedule
+           exists to remove, rather than taken on trust. */
+        rec.slot = done;
+        rec.ranFirstInGroup = backendOrder(gi, r)[0].id === backend.id;
+        current.runs.push(rec);
+        texts.get(backend.id)!.push(rec.text);
+        paintCell(cell, rec);
+      }
     }
+
     /* The changelog claims a passage yields the same recap every time. This is
        where that either holds or does not. */
-    if (texts.length > 1) {
-      const same = texts.every((t) => t === texts[0]);
+    for (const b of BACKENDS) {
+      const t = texts.get(b.id)!;
+      if (t.length < 2) continue;
+      const same = t.every((x) => x === t[0]);
       const verdict = el('div', same ? 'verdict same' : 'verdict differs');
       verdict.textContent = same ? 'identical across runs' : 'differs across runs';
-      cell.appendChild(verdict);
+      $(`#cell-${fixture.id}-${mode}-${b.id}`).appendChild(verdict);
     }
   }
 
