@@ -19,8 +19,7 @@ import {
   type ProgressFn,
 } from './backend';
 
-// Same model the "the room" Literary Salon app uses, for parity — a Gemma
-// checkpoint packaged for LiteRT-LM's web runtime.
+// A Gemma 4 E4B checkpoint packaged for LiteRT-LM's web runtime.
 const MODEL_URL =
   'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.litertlm';
 const CACHE_NAME = 'skim-recap-model-v1';
