@@ -179,12 +179,12 @@ check('every fixture carries a licence', 'True',
 # ------------------------------------------------- true, but sourced elsewhere ---
 note('maxNumTokens 4096', 'an engine.settings reading logged in findings.md; '
      'describe() will not load 2.97 GB to answer a configuration question',
-     'blog §07, report, findings')
+     'blog §07, findings')
 note('Chrome 151.0.7922.108',
      f"the export records {d2['env']['userAgent'].split('Chrome/')[1].split()[0]}; "
-     'the full build number came from chrome://version', 'blog §02, report')
+     'the full build number came from chrome://version', 'blog §02')
 note('~17 captures reviewed, 9 kept', 'selection history, not in any results file',
-     'blog §09, report, findings')
+     'blog §09, findings')
 note('the four quoted excerpts are factually correct',
      'judged by hand against outside knowledge; the check below only proves the '
      'model produced the sentence', 'blog §08, findings')

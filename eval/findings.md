@@ -329,6 +329,64 @@ A Stable-versus-Canary rerun would vary the Chrome channel and may also vary
 browser version, runtime implementation, and model. Those variables are not
 separated by the current harness.
 
+## 16. Second run — corpus committed, sampler stated, schedule counterbalanced
+
+**Status: CURRENT**
+
+Maud Nalpas (Chrome team) reviewed the first run and raised three points: the
+corpus was not in the repository, LiteRT-LM's sampler was unconfigured while
+the Prompt API's was, and the execution order was fixed. All three were
+addressed and the same nine passages were run again on 13 August. 72
+generations, 0 failures.
+
+**What changed going in.** The nine passages are now literal constants in
+`src/fixtures.ts`, each with a source URL, capture timestamp, and licence note.
+`backend-litert.ts` now requests `SamplerType.GREEDY` explicitly through
+`sessionConfig.samplerParams`, where the first run passed only a preface.
+`eval.ts` now alternates backends within a group and flips which one leads with
+the group index and the repeat, so each leads exactly 18 of 36 slots, instead
+of LiteRT-LM leading all 18 groups as it had in the first run.
+
+**Content: unchanged, and that settles the sampler question.** All 72 outputs
+are byte-identical to the first run's. Requesting greedy explicitly produced
+exactly what the unconfigured default had produced, so the library default was
+greedy the whole time — previously an inference from repeat equality, now a
+direct comparison between two runs.
+
+**Timing: did not replicate, and that is the finding.** Under the fixed order
+the Prompt API was first to token in 28 of 36 pairs; with the order
+counterbalanced it is first in 31 of 36 (sign test p < 0.0001). The leading
+slot in a group carries a median 125 ms advantage, measured directly from the
+counterbalanced run. This is not read as run 2 correcting run 1 into a
+trustworthy number. Same corpus, same machine, and the answer moved when the
+only thing that changed was which generation happened to run first — which
+means neither run's absolute timing figures should be trusted on their own.
+
+One result did not survive at all. The first run showed LiteRT-LM's second
+generation in a group a median 114 ms faster than its first, recorded as a
+per-conversation warm-up cost the discarded warm-up had not covered. Under the
+counterbalanced schedule that gap is −18 ms, and +8 ms on the Prompt API side —
+indistinguishable from noise. It was the fixed order, not conversation setup.
+**Withdrawn.** Kept in this log rather than removed, because reporting a
+scheduling artefact as a runtime property is exactly the failure this section
+exists to record.
+
+**Corpus correction found by the same reading.** Writing the per-passage notes
+against the actual text turned up that nine passages come from five
+independent sources, not six as first stated — the three pharmacology entries
+are sections of one review, previously counted as separate sources. Licence
+notes were added per passage; only the `history.state.gov` passage is
+confirmed public domain, the rest are recorded as unverified or all-rights-
+reserved pending confirmation.
+
+**What is still open.** The corpus was not enlarged, and summarization quality
+still has no metric. A second run of an unchanged corpus is not further
+evidence about the models — it is evidence about how little a single
+sequential session on one machine can be trusted to say about latency. What a
+trustworthy setup would need — repeated sessions, a cooldown between them, or
+simply not reporting absolute latency until it can — is recorded below as open,
+not resolved by this run.
+
 ## Open items
 
 **Status: OPEN**
@@ -336,11 +394,15 @@ separated by the current harness.
 - Test `LanguageModel` inside an extension offscreen document.
 - Test `LanguageModel` inside a content-script isolated world.
 - Record streaming semantics in a run where the detector resolves to `delta`
-  or `cumulative`; the final export recorded `unknown`.
-- Re-capture and commit the exact nine passage texts, then create a new export.
+  or `cumulative`; both exports have recorded `unknown`.
 - Measure Prompt API availability and download behavior in a clean Chrome
   profile.
-- Randomize or counterbalance backend order for timing measurements.
+- Design a latency measurement that survives more than one session — repeated
+  runs with a cooldown between them, or a stated reason absolute latency
+  should not be reported at all. Counterbalancing the schedule (§16) removed
+  one source of bias; it did not make a single session trustworthy.
 - Define a blinded review rubric if content-quality scoring is added.
+- Replace the two `blog.sshh.io` fixtures, which overlap 90% and are not
+  independent passages.
 - Record multiple devices or sessions if device-level timing variability is
   evaluated.

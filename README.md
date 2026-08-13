@@ -88,9 +88,8 @@ The 9 × 2 modes = 18 *groups*. Each group runs both backends, twice.
 | --- | --- |
 | `eval/results/*.json` | 72 generated outputs with timings, chunk counts, errors, environment fields, and fixture metadata |
 | `eval/results/*.pdf` | Rendered side-by-side outputs |
-| `eval/findings.md` | Factual observation, correction, and open-item log |
+| `eval/findings.md` | Chronological observation, correction, and open-item log — the primary record |
 | `eval/verify-claims.py` | Recomputes a declared set of metrics encoded in the script |
-| `docs/report.md` | Current factual run record |
 | `src/eval.ts`, `eval.html` | Evaluation runner and interface |
 | `manifest.json`, `build.js` | Enough to load the harness as an unpacked extension |
 | `src/backend*.ts` | Backend adapters |
@@ -168,29 +167,35 @@ defines it in its first sentence. Two fixtures were reclassified from
 `undefined-term` to `bounded` on re-reading. That history is in
 `eval/findings.md`.
 
-**What is still not reproducible.** The JSON export committed here predates the
-corpus commit, so its `fixtures` block still carries empty `text` fields; the
-passages are in the source file, not in that results file. A re-run produces an
-export that carries them. Two further caveats on the corpus itself: two fixtures
-are overlapping slices of one article, two more are sections of one paper, and
-three are sections of a single review — so nine passages come from **five**
-independent sources, not nine.
+**A caveat on the corpus itself, not the artifacts.** Two fixtures are
+overlapping slices of one blog post (90% text overlap — flagged in
+`eval/findings.md` as due for replacement), two more are sections of one
+systems paper, and three are sections of a single pharmacology review. Nine
+passages come from **five** independent sources, not nine.
 
-## Recorded run shape
+## Two runs, not one
 
-| Field | Value |
-| --- | --- |
-| Passages | 9 |
-| Modes | recap and explain/Feynman |
-| Backends | LiteRT-LM and Prompt API |
-| Repeats | 2 per passage-mode-backend condition |
-| Final exported generations | 72 |
-| Failed generations in the final export | 0 |
-| Prompt API sampling request | `temperature: 0`, `topK: 1` |
-| LiteRT-LM sampler parameters | not reported in this run; the harness now requests `SamplerType.GREEDY` explicitly |
+Two exports are committed, both over the same nine passages:
 
-The chronological log contains earlier runs and corrections. Sections in that
-file are marked `CURRENT`, `SUPERSEDED`, `CORRECTION`, or `OPEN`.
+| | `...2026-08-11...json` (run 1) | `...2026-08-13...json` (run 2) |
+| --- | --- | --- |
+| Passages in the export | ids and domains only, no text | full text, source URL, licence |
+| LiteRT-LM sampler | library default, unstated | `SamplerType.GREEDY` requested by name |
+| Backend order | LiteRT-LM leads all 18 groups | alternates, each leads 18 of 36 |
+| Generated output | **byte-identical to run 2** | **byte-identical to run 1** |
+| Prompt API first to token | 28 / 36 | 31 / 36 |
+
+The content side is stable across the two runs; the timing side is not, and
+that disagreement is itself the result worth reading — not a signal that run
+2's numbers are the trustworthy ones. `eval/findings.md` §16 has the full
+account, including a finding from run 1 that did not survive run 2 and was
+withdrawn.
+
+`eval/findings.md` is the primary record: both runs, in the order they happened,
+including what was corrected and why. Sections are marked `CURRENT`,
+`SUPERSEDED`, `CORRECTION`, or `OPEN`. The [writeup](https://skim-recap.vercel.app/blog/gemma-4-e4b-vs-chrome-prompt-api)
+is the polished version of the same record; there is no separate markdown
+report kept in sync with it, to avoid two documents drifting apart.
 
 ## Review limitations
 
